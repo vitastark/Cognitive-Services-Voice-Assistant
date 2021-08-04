@@ -100,140 +100,32 @@ jobs:
   pool:
     vmImage: 'windows-latest'
   steps:
-
-  - task: NuGetToolInstaller@1
-
-  # Build Windows Voice Assistant Client (C#, WPF)
-
-  - task: NuGetCommand@2
-    displayName: '$(sample1Name) - NuGetCommand'
+  - task: Bash@3
+    displayName: 'Export source app'
     inputs:
-      restoreSolution: '$(sample1Solution)'
+      targetType: filePath
+      filePath: ./bash/export.sh
+      arguments: '-r westus2 -s $(SubscriptionKey) -c $(Culture) -a $(SourceAppId) -f ExportedDialogModel.json'
+      workingDirectory: bash
+      failOnStderr: true
 
-  - task: VSBuild@1
-    displayName: '$(sample1Name) - VSBuild'
+  - task: Bash@3
+    displayName: 'Import to target app'
     inputs:
-      solution: '$(sample1Solution)'
-      msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
-      platform: '$(buildPlatformNative)'
-      configuration: '$(buildConfiguration)'
+      targetType: filePath
+      filePath: ./bash/import.sh
+      arguments: '-r westus2 -s $(SubscriptionKey) -c $(Culture) -a $(TargetAppId) -f ExportedDialogModel.json'
+      workingDirectory: bash
+      failOnStderr: true
 
-  #
-  # Disable signing until we find time to set up a Key Vault. The correct certificate is about to expire.
-  # "All certificates used for integrating with ESRP are now required to be held in an Azure Key Vault (AKV)"
-  # https://microsoft.sharepoint.com/teams/prss/esrp/info/ESRP%20Onboarding%20Wiki/Generating%20the%20ESRP%20Authentication%20(Request%20Signing)%20certificate.aspx
-  #
-  #- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-  #  displayName: '$(sample1Name) - EsrpCodeSigning'
-  #  inputs:
-  #    ConnectedServiceName: 'Voice Assistant Sample Code ESRP Signing' 
-  #    signConfigType: inlineSignParams
-  #    inlineOperation: '$(signParams)'
-  #    FolderPath: '$(sample1PublishedArtifactPath)'
-  #    Pattern: 'VoiceAssistantClient.exe'
-  #    SessionTimeout: '60'
-
-  - task: PublishPipelineArtifact@1
-    displayName: '$(sample1Name) - PublishPipelineArtifact'
+  - task: Bash@3
+    displayName: 'Train and Publish target app'
     inputs:
-      path: $(sample1PublishedArtifactPath)
-      artifact: $(sample1PublishedArtifactName)
-
-  # Build Voice Assistant Test (C# .NET Core)
-
-  - task: DotNetCoreCLI@2
-    displayName: '$(sample2Name) - DotNetCoreCLI'
-    inputs:
-      Command: 'publish'
-      Projects: $(sample2Solution)
-      publishWebProjects: false
-      Arguments: '-r $(dotNetCoreRuntimeIdentifier) -c $(buildConfiguration) -o $(sample2PublishedArtifactPath)  /p:PublishSingleFile=true'
-      zipAfterPublish: false
-      modifyOutputPath: true    
-
-  - task: PublishPipelineArtifact@1
-    displayName: '$(sample2Name) - PublishPipelineArtifact'
-    inputs:
-      path: $(sample2PublishedArtifactPath)
-      artifact: $(sample2PublishedArtifactName)
-      
-  # Build C++ console application
-
-  - task: NuGetCommand@2
-    displayName: '$(sample3Name) - NuGetCommand'
-    inputs:
-      restoreSolution: '$(sample3Solution)'
-      
-  - task: VSBuild@1
-    displayName: '$(sample3Name) - VSBuild'
-    inputs:
-      solution: '$(sample3Solution)'
-      msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
-      platform: '$(buildPlatformNative)'
-      configuration: '$(buildConfiguration)'
-
-  - task: DeleteFiles@1
-    inputs:
-      sourceFolder: $(sample3PublishedArtifactPath)
-      contents: |
-        *.txt
-        *.sarif
-        *.obj
-        *.xml
-        *.ilk
-        *.tlog
-        *.iobj
-        *.ipdb
-
-  - task: PublishPipelineArtifact@1
-    displayName: '$(sample3Name) - PublishPipelineArtifact'
-    inputs:
-      path: $(sample3PublishedArtifactPath)
-      artifact: $(sample3PublishedArtifactName)
-
-  # Build UWP Voice Assistant Sample (C# UWP)
-
-  - task: NuGetCommand@2
-    displayName: '$(sample4Name) - NuGetCommand'
-    inputs:
-      restoreSolution: '$(sample4Solution)'
-
-  - task: VSBuild@1
-    displayName: '$(sample4Name) - VSBuild'
-    inputs:
-      solution: '$(sample4Solution)'
-      msbuildArgs: '/p:AppxBundlePlatforms="$(buildPlatformNative)" /p:AppxPackageDir="$(appxPackageDir)" /p:AppxBundle=Always /p:UapAppxPackageBuildMode=StoreUpload'
-      platform: '$(buildPlatformNative)'
-      configuration: '$(buildConfiguration)'
-
-  - task: PublishPipelineArtifact@1
-    displayName: '$(sample4Name) - PublishPipelineArtifact'
-    inputs:
-      path: $(sample4PublishedArtifactPath)
-      artifact: $(sample4PublishedArtifactName)
-
-  #- task: VSTest@2
-  #  inputs:
-  #    platform: '$(buildPlatformNative)'
-  #    configuration: '$(buildConfiguration)'
-
-  - task: ComponentGovernanceComponentDetection@0
-    inputs:
-      scanType: 'Register'
-      verbosity: 'Verbose'
-      alertWarningLevel: 'High'
-
-  - task: PoliCheck@1
-    inputs:
-      inputType: 'Basic'
-      targetType: 'F'
-      targetArgument: '$(Build.SourcesDirectory)'
-      result: 'PoliCheck.xml'
-
-  # This does not work on self-hosted agent for some reason
-  - task: notice@0
-    inputs:
-      outputformat: 'text'
+      targetType: filePath
+      filePath: './bash/train-and-publish.sh'
+      arguments: '-r westus2 -s $(SubscriptionKey) -c $(Culture) -a $(TargetAppId)'
+      workingDirectory: bash
+      failOnStderr: true
       
 - job: Linux_Builds
   pool: 
